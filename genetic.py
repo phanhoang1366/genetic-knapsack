@@ -3,11 +3,9 @@ from typing import List
 
 
 class Item:
-    def __init__(self, name, weight, value):
-        self.name = name
+    def __init__(self, weight, value):
         self.weight = weight
         self.value = value
-
 
 class Individual:
     def __init__(self, bits: List[int]):
@@ -35,18 +33,13 @@ class Individual:
         
         return 0
 
-
+NUM_OF_ITEMS = 0
 MAX_KNAPSACK_WEIGHT = 15
 CROSSOVER_RATE = 0.53
 MUTATION_RATE = 0.013
 REPRODUCTION_RATE = 0.15
 
-items = [
-    Item("A", 7, 5),
-    Item("B", 2, 4),
-    Item("C", 1, 7),
-    Item("D", 9, 2)
-]
+items = []
 
 
 def generate_initial_population(count=6) -> List[Individual]:
@@ -149,7 +142,7 @@ def solve_knapsack() -> Individual:
 
     avg_fitnesses = []
 
-    for _ in range(500):
+    for _ in range(1000):
         avg_fitnesses.append(average_fitness(population))
         population = next_generation(population)
 
@@ -158,5 +151,11 @@ def solve_knapsack() -> Individual:
 
 
 if __name__ == '__main__':
+    NUM_OF_ITEMS, MAX_KNAPSACK_WEIGHT = map(int, input().split())
+
+    for _ in range(NUM_OF_ITEMS):
+        w, v = map(int, input().split())
+        items.append(Item(w, v))
+
     solution = solve_knapsack()
-    print(solution, solution.fitness())
+    print(solution.fitness())

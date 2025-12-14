@@ -30,8 +30,11 @@ def knapsack(W, w, v, n):
 
 
 if __name__ == '__main__':
-    wt = [7, 2, 1, 9]
-    val = [5, 4, 7, 2]
-    W = 15
-    n = len(val)
+    n, W = map(int, input().split())
+    wt = []
+    val = []
+    for _ in range(n):
+        w, v = map(int, input().split())
+        wt.append(w)
+        val.append(v)
     print(knapsack(W, wt, val, n))

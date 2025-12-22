@@ -22,6 +22,8 @@ struct Item {
 
 using Individual = std::vector<bool>;
 std::vector<Item> items;
+std::vector<size_t> indices_by_ratio;
+std::vector<size_t> indices_by_value;
 
 size_t number_of_items;
 long long max_weight;
@@ -38,16 +40,11 @@ std::pair<long long, long long> compute_value_weight(const Individual &ind) {
 	return {total_value, total_weight};
 }
 
-Individual greedy_by_ratio(const std::vector<Item> &items, long long max_weight) {
+Individual greedy_by_ratio(long long max_weight) {
 	size_t n = items.size();
-	std::vector<size_t> indices(n);
-	std::iota(indices.begin(), indices.end(), 0);
-	std::sort(indices.begin(), indices.end(), [&](size_t a, size_t b) {
-		return items[a].ratio() > items[b].ratio();
-	});
 	Individual ind(n, false);
 	long long current_weight = 0;
-	for (size_t idx : indices) {
+	for (size_t idx : indices_by_ratio) {
 		if (current_weight + items[idx].weight <= max_weight) {
 			ind[idx] = true;
 			current_weight += items[idx].weight;
@@ -56,16 +53,11 @@ Individual greedy_by_ratio(const std::vector<Item> &items, long long max_weight)
 	return ind;
 }
 
-Individual greedy_by_value(const std::vector<Item> &items, long long max_weight) {
+Individual greedy_by_value(long long max_weight) {
 	size_t n = items.size();
-	std::vector<size_t> indices(n);
-	std::iota(indices.begin(), indices.end(), 0);
-	std::sort(indices.begin(), indices.end(), [&](size_t a, size_t b) {
-		return items[a].value > items[b].value;
-	});
 	Individual ind(n, false);
 	long long current_weight = 0;
-	for (size_t idx : indices) {
+	for (size_t idx : indices_by_value) {
 		if (current_weight + items[idx].weight <= max_weight) {
 			ind[idx] = true;
 			current_weight += items[idx].weight;
@@ -117,12 +109,12 @@ Individual repair(const Individual &ind) {
     return repaired;
 }
 
-std::vector<Individual> initial_population(size_t item_count, const std::vector<Item> &items) {
+std::vector<Individual> initial_population(size_t item_count) {
 	std::vector<Individual> population(POP_SIZE, Individual(item_count, false));
 	
 	// First individual uses greedy heuristic
-	population[0] = greedy_by_ratio(items, max_weight);
-	population[1] = greedy_by_value(items, max_weight);
+	population[0] = greedy_by_ratio(max_weight);
+	population[1] = greedy_by_value(max_weight);
 
 	// Rest are random
 	for (size_t i = 2; i < POP_SIZE; ++i) {
@@ -162,8 +154,8 @@ void repopulate(std::vector<Individual> &population, const Individual &best_indi
 		new_population.push_back(ranked[i].second);
 
 	// 2) Add greedy seeds (important)
-	new_population.push_back(greedy_by_ratio(items, max_weight));
-	new_population.push_back(greedy_by_value(items, max_weight));
+	new_population.push_back(greedy_by_ratio(max_weight));
+	new_population.push_back(greedy_by_value(max_weight));
 
 	// 3) Inject randomized individuals
 	while (new_population.size() < elite_count + reset_count) {
@@ -240,8 +232,21 @@ std::vector<Individual> create_next_generation(const std::vector<Individual> &pa
 	return next_generation;
 }
 
-long long genetic_algorithm(const std::vector<Item> &items) {
-	auto population = initial_population(number_of_items, items);
+#ifndef ONLINE_JUDGE
+long long dp_knapsack() {
+	size_t n = items.size();
+	std::vector<long long> dp(max_weight + 1, 0);
+	for (size_t i = 0; i < n; ++i) {
+		for (long long w = max_weight; w >= items[i].weight; --w) {
+			dp[w] = std::max(dp[w], dp[w - items[i].weight] + items[i].value);
+		}
+	}
+	return dp[max_weight];
+}
+#endif
+
+long long genetic_algorithm() {
+	auto population = initial_population(number_of_items);
 
 	// Initialize best from initial population
 	long long best_value = evaluate(population[0]);
@@ -250,6 +255,11 @@ long long genetic_algorithm(const std::vector<Item> &items) {
 	size_t stagnation_counter = 0;
 	size_t stagnation_resets = 0;
 	clock_t start_time = clock();
+
+#ifndef ONLINE_JUDGE
+	long long dp_value = dp_knapsack();
+	std::cout << "DP optimal value: " << dp_value << std::endl;
+#endif
 
 	for (size_t generation = 0; generation < GENERATIONS; ++generation) {
 		if ((double)(clock() - start_time) / CLOCKS_PER_SEC > TIME_LIMIT) {
@@ -286,6 +296,13 @@ long long genetic_algorithm(const std::vector<Item> &items) {
 				repopulate(population, best_individual);
 			}
 		}
+
+#ifndef ONLINE_JUDGE
+		if (best_value == dp_value) {
+			std::cout << "Optimal solution found at generation " << generation << std::endl;
+			break;
+		}
+#endif
 		
 		auto parents = select_parents(population);
 		population = create_next_generation(parents);
@@ -309,7 +326,20 @@ int main() {
 	for (size_t i = 0; i < number_of_items; ++i) {
 		std::cin >> items[i].weight >> items[i].value;
 	}
-	long long best_value = genetic_algorithm(items);
+	
+	// Pre-sort indices globally
+	indices_by_ratio.resize(number_of_items);
+	indices_by_value.resize(number_of_items);
+	std::iota(indices_by_ratio.begin(), indices_by_ratio.end(), 0);
+	std::iota(indices_by_value.begin(), indices_by_value.end(), 0);
+	std::sort(indices_by_ratio.begin(), indices_by_ratio.end(), [&](size_t a, size_t b) {
+		return items[a].ratio() > items[b].ratio();
+	});
+	std::sort(indices_by_value.begin(), indices_by_value.end(), [&](size_t a, size_t b) {
+		return items[a].value > items[b].value;
+	});
+	
+	long long best_value = genetic_algorithm();
 	std::cout << best_value << std::endl;
 	return 0;
 }
